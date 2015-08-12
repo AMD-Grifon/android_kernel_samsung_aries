@@ -136,8 +136,6 @@ static void late_resume(struct work_struct *work)
 	struct early_suspend *pos;
 	unsigned long irqflags;
 	int abort = 0;
-<<<<<<< HEAD
-=======
 
 #ifdef CONFIG_SPEEDUP_KEYRESUME
 	earlysuspend_old_prio = current->rt_priority;
@@ -149,12 +147,6 @@ static void late_resume(struct work_struct *work)
 			printk(KERN_ERR "late_resume: up late_resume failed\n");
 	}
 #endif
-
-	struct timer_list timer;
-	struct pm_wd_data data;
-
-	pm_wd_add_timer(&timer, &data, 30);
->>>>>>> f6f9c1b... earysuspend: speedup late resume (faster wakeup of the device)
 
 	mutex_lock(&early_suspend_lock);
 	spin_lock_irqsave(&state_lock, irqflags);
@@ -186,8 +178,6 @@ static void late_resume(struct work_struct *work)
 		pr_info("late_resume: done\n");
 abort:
 	mutex_unlock(&early_suspend_lock);
-<<<<<<< HEAD
-=======
 
 #ifdef CONFIG_SPEEDUP_KEYRESUME
 	if (!(unlikely(earlysuspend_old_policy == SCHED_FIFO) || unlikely(earlysuspend_old_policy == SCHED_RR))) {
@@ -197,8 +187,6 @@ abort:
 	}
 #endif
 
-	pm_wd_del_timer(&timer);
->>>>>>> f6f9c1b... earysuspend: speedup late resume (faster wakeup of the device)
 }
 
 void request_suspend_state(suspend_state_t new_state)
