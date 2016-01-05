@@ -103,6 +103,13 @@
 #undef pr_debug
 #define pr_debug pr_info
 
+bool nocam;
+EXPORT_SYMBOL(nocam);
+bool bigmem;
+EXPORT_SYMBOL(bigmem);
+bool xlmem;
+EXPORT_SYMBOL(xlmem);
+
 struct class *sec_class;
 EXPORT_SYMBOL(sec_class);
 
@@ -141,11 +148,19 @@ static int wave_notifier_call(struct notifier_block *this,
 {
 	int mode = REBOOT_MODE_NONE;
 
+	if (nocam)
+		mode = 7;
+	else if (bigmem)
+		mode = 3;
+
 	if ((code == SYS_RESTART) && _cmd) {
 		if (!strcmp((char *)_cmd, "recovery"))
-			mode = 2; // It's not REBOOT_MODE_RECOVERY, blame Samsung
-		else
-			mode = REBOOT_MODE_NONE;
+			if (nocam)
+				mode = 9;
+			else if (bigmem)
+				mode = 5;
+			else
+				mode = 2; // It's not REBOOT_MODE_RECOVERY, blame Samsung
 	}
 	__raw_writel(mode, S5P_INFORM6);
 
@@ -302,11 +317,18 @@ static struct s3cfb_lcd s6e63m0 = {
 };
 #endif
 
-#define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0 (5000 * SZ_1K)
+#define S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM (0 * SZ_1K)
 
-#define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC2 (5000 * SZ_1K)
+#define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0 (12288 * SZ_1K)
+#define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0_BM (5000 * SZ_1K)
+
+#define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC2 (12288 * SZ_1K)
+#define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC2_BM (5000 * SZ_1K)
+
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0 (11264 * SZ_1K)
+
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1 (11264 * SZ_1K)
+
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMD (S5PV210_LCD_WIDTH * \
 					     S5PV210_LCD_HEIGHT * 4 * \
 					     (CONFIG_FB_S3C_NR_BUFFERS + \
@@ -4311,6 +4333,36 @@ static struct platform_device *wave_devices[] __initdata = {
 	&samsung_asoc_dma,
 };
 
+static void check_bigmem(void) {
+	int bootmode = __raw_readl(S5P_INFORM6);
+	if ((bootmode == 7) || (bootmode == 9)) {
+		nocam = true;
+		bigmem = false;
+		wave_media_devs[0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
+		wave_media_devs[1].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
+		wave_media_devs[2].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
+		wave_media_devs[3].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
+		wave_media_devs[4].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
+	}
+	else if ((bootmode == 3) || (bootmode == 5)) {
+		bigmem = true;
+		nocam = false;
+		wave_media_devs[0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0;
+		wave_media_devs[1].memsize =  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1;
+		wave_media_devs[2].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0_BM;
+		wave_media_devs[3].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC2_BM;
+		wave_media_devs[4].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_JPEG;
+	} else {
+		bigmem = false;
+		nocam = false;
+		wave_media_devs[0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0;
+		wave_media_devs[1].memsize =  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1;
+		wave_media_devs[2].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0;
+		wave_media_devs[3].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC2;
+		wave_media_devs[4].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_JPEG;
+	}
+}
+
 static void __init wave_map_io(void)
 {
 	s5p_init_io(NULL, 0, S5P_VA_CHIPID);
@@ -4320,6 +4372,7 @@ static void __init wave_map_io(void)
 	#ifndef CONFIG_S5P_HIGH_RES_TIMERS
 		s5p_set_timer_source(S5P_PWM3, S5P_PWM4);
 	#endif
+	check_bigmem();
 	s5p_reserve_bootmem(wave_media_devs,
 		ARRAY_SIZE(wave_media_devs), S5P_RANGE_MFC);
 #ifdef CONFIG_MTD_ONENAND
