@@ -25,7 +25,6 @@ dir /proc 755 0 0
 dir /stage1 755 0 0
 dir /system 755 0 0
 dir /cache 755 0 0
-dir /sdcard 755 0 0
 dir /lvm 755 0 0
 dir /lvm/etc 755 0 0
 dir /lvm/sbin 755 0 0
