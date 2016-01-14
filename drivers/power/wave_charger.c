@@ -52,6 +52,10 @@
 #include <plat/gpio-cfg.h>
 #include <linux/android_alarm.h>
 
+#ifdef CONFIG_BLX
+#include <linux/blx.h>
+#endif
+
 #define DRIVER_NAME	"wave_charger"
 
 enum {
@@ -354,6 +358,15 @@ static void s3c_bat_discharge_reason(struct chg_data *chg)
 
 	if (chg->set_batt_full)
 		chg->bat_info.dis_reason |= DISCONNECT_BAT_FULL;
+
+#ifdef CONFIG_BLX
+	if (get_charginglimit() != MAX_CHARGINGLIMIT && chg->bat_info.batt_soc >= get_charginglimit())
+	    {
+		chg->bat_info.dis_reason |= DISCONNECT_BAT_FULL;
+
+		chg->bat_info.batt_is_full = true;
+	    }
+#endif
 
 	if (chg->bat_info.batt_health != POWER_SUPPLY_HEALTH_GOOD)
 		chg->bat_info.dis_reason |= chg->bat_info.batt_health ==
