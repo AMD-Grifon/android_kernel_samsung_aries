@@ -6,6 +6,7 @@
  * uses a centralized lock to manage a pool of partial slabs.
  *
  * (C) 2007 SGI, Christoph Lameter
+ * (C) 2011 Linux Foundation, Christoph Lameter
  */
 
 #include <linux/mm.h>
@@ -1061,6 +1062,12 @@ bad:
 static noinline int free_debug_processing(struct kmem_cache *s,
 		 struct page *page, void *object, unsigned long addr)
 {
+	unsigned long flags;
+	int rc = 0;
+
+	local_irq_save(flags);
+	slab_lock(page);
+
 	if (!check_slab(s, page))
 		goto fail;
 
@@ -1075,7 +1082,7 @@ static noinline int free_debug_processing(struct kmem_cache *s,
 	}
 
 	if (!check_object(s, page, object, SLUB_RED_ACTIVE))
-		return 0;
+		goto out;
 
 	if (unlikely(s != page->slab)) {
 		if (!PageSlab(page)) {
@@ -1104,11 +1111,15 @@ static noinline int free_debug_processing(struct kmem_cache *s,
 		set_track(s, object, TRACK_FREE, addr);
 	trace(s, page, object, 0);
 	init_object(s, object, SLUB_RED_INACTIVE);
-	return 1;
+	rc = 1;
+out:
+	slab_unlock(page);
+	local_irq_restore(flags);
+	return rc;
 
 fail:
 	slab_fix(s, "Object at 0x%p not freed", object);
-	return 0;
+	goto out;
 }
 
 static int __init setup_slub_debug(char *str)
@@ -1913,6 +1924,7 @@ static void *__slab_alloc(struct kmem_cache *s, gfp_t gfpflags, int node,
 
 	slab_lock(page);
 	if (unlikely(!node_match(c, node)))
+		stat(s, ALLOC_NODE_MISMATCH);
 		goto another_slab;
 
 	/* must check again c->freelist in case of cpu migration or IRQ */
@@ -4210,11 +4222,12 @@ struct slab_attribute {
 };
 
 #define SLAB_ATTR_RO(_name) \
-	static struct slab_attribute _name##_attr = __ATTR_RO(_name)
+	static struct slab_attribute _name##_attr = \
+	__ATTR(_name, 0400, _name##_show, NULL)
 
 #define SLAB_ATTR(_name) \
 	static struct slab_attribute _name##_attr =  \
-	__ATTR(_name, 0644, _name##_show, _name##_store)
+	__ATTR(_name, 0600, _name##_show, _name##_store)
 
 static ssize_t slab_size_show(struct kmem_cache *s, char *buf)
 {
@@ -4631,6 +4644,7 @@ STAT_ATTR(FREE_REMOVE_PARTIAL, free_remove_partial);
 STAT_ATTR(ALLOC_FROM_PARTIAL, alloc_from_partial);
 STAT_ATTR(ALLOC_SLAB, alloc_slab);
 STAT_ATTR(ALLOC_REFILL, alloc_refill);
+STAT_ATTR(ALLOC_NODE_MISMATCH, alloc_node_mismatch);
 STAT_ATTR(FREE_SLAB, free_slab);
 STAT_ATTR(CPUSLAB_FLUSH, cpuslab_flush);
 STAT_ATTR(DEACTIVATE_FULL, deactivate_full);
@@ -4690,6 +4704,7 @@ static struct attribute *slab_attrs[] = {
 	&alloc_from_partial_attr.attr,
 	&alloc_slab_attr.attr,
 	&alloc_refill_attr.attr,
+	&alloc_node_mismatch_attr.attr,
 	&free_slab_attr.attr,
 	&cpuslab_flush_attr.attr,
 	&deactivate_full_attr.attr,
@@ -5051,7 +5066,7 @@ static const struct file_operations proc_slabinfo_operations = {
 
 static int __init slab_proc_init(void)
 {
-	proc_create("slabinfo", S_IRUGO, NULL, &proc_slabinfo_operations);
+	proc_create("slabinfo", S_IRUSR, NULL, &proc_slabinfo_operations);
 	return 0;
 }
 module_init(slab_proc_init);
