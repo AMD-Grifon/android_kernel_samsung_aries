@@ -24,7 +24,7 @@
 extern int __atomic_add_return(int, atomic_t *);
 extern int atomic_cmpxchg(atomic_t *, int, int);
 #define atomic_xchg(v, new) (xchg(&((v)->counter), new))
-extern int atomic_add_unless(atomic_t *, int, int);
+extern int __atomic_add_unless(atomic_t *, int, int);
 extern void atomic_set(atomic_t *, int);
 
 #define atomic_read(v)          (*(volatile int *)&(v)->counter)
@@ -162,5 +162,4 @@ static inline int __atomic24_sub(int i, atomic24_t *v)
 
 #endif /* !(__KERNEL__) */
 
-#include <asm-generic/atomic-long.h>
 #endif /* !(__ARCH_SPARC_ATOMIC__) */
