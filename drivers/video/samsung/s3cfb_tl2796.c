@@ -1220,7 +1220,7 @@ static int __devinit tl2796_probe(struct spi_device *spi)
 
 	lcd->g_spi = spi;
 	lcd->dev = &spi->dev;
-	lcd->bl = 255;
+	lcd->bl = 128;
 	for (c = 0; c < 3; c++)
 		lcd->color_mult[c] = 0xffffffff;
 
