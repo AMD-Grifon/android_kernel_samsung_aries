@@ -53,7 +53,7 @@ obj-$(CONFIG_MACH_P1)		+= dev-p1-phone.o
 obj-$(CONFIG_MACH_P1) 		+= level.o
 obj-$(CONFIG_MACH_P1) 		+= p1-sec_switch.o
 
-obj-$(CONFIG_MACH_WAVE)		+= mach-wave.o wave-rfkill.o bigmem.o
+obj-$(CONFIG_MACH_WAVE)		+= mach-wave.o wave-rfkill.o
 obj-$(CONFIG_MACH_WAVE)		+= wave-vibrator.o
 obj-$(CONFIG_MACH_WAVE)		+= wave-btlpm.o
 obj-$(CONFIG_MACH_WAVE)		+= wave-watchdog.o
