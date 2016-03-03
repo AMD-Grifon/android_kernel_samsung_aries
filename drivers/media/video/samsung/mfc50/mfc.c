@@ -40,6 +40,8 @@
 #include <linux/slab.h>
 #include <linux/clk.h>
 #include <linux/dma-mapping.h>
+#include <linux/delay.h>
+#include <linux/cma.h>
 
 #include <linux/sched.h>
 #include <linux/firmware.h>
@@ -78,12 +80,25 @@ static int mfc_open(struct inode *inode, struct file *file)
 	mutex_lock(&mfc_mutex);
 
 	if (!mfc_is_running()) {
+		/* Request CMA allocation */
+		ret = s5p_alloc_media_memory_bank(S5P_MDEV_MFC, 0);
+		if (ret < 0) {
+			ret = -ENOMEM;
+			goto err_open;
+		}
+
+		ret = s5p_alloc_media_memory_bank(S5P_MDEV_MFC, 1);
+		if (ret < 0) {
+			ret = -ENOMEM;
+			goto err_alloc0;
+		}
+
 		/* Turn on mfc power domain regulator */
 		ret = regulator_enable(mfc_pd_regulator);
 		if (ret < 0) {
 			mfc_err("MFC_RET_POWER_ENABLE_FAIL\n");
 			ret = -EINVAL;
-			goto err_open;
+			goto err_alloc1;
 		}
 
 #ifdef CONFIG_DVFS_LIMIT
@@ -149,6 +164,12 @@ err_regulator:
 		if (ret < 0)
 			mfc_err("MFC_RET_POWER_DISABLE_FAIL\n");
 	}
+err_alloc1:
+	if (!mfc_is_running())
+		s5p_release_media_memory_bank(S5P_MDEV_MFC, 1);
+err_alloc0:
+	if (!mfc_is_running())
+		s5p_release_media_memory_bank(S5P_MDEV_MFC, 0);
 err_open:
 	mutex_unlock(&mfc_mutex);
 
@@ -195,6 +216,9 @@ static int mfc_release(struct inode *inode, struct file *file)
 			mfc_err("MFC_RET_POWER_DISABLE_FAIL\n");
 			goto out_release;
 		}
+
+		s5p_release_media_memory_bank(S5P_MDEV_MFC, 0);
+		s5p_release_media_memory_bank(S5P_MDEV_MFC, 1);
 	}
 
 out_release:
@@ -508,6 +532,22 @@ static int mfc_mmap(struct file *filp, struct vm_area_struct *vma)
 	return 0;
 }
 
+static int mfc_open_with_retry(struct inode *inode, struct file *file)
+{
+	int ret;
+	int i = 0;
+
+	ret = mfc_open(inode, file);
+
+	while (ret == -ENOMEM && i++ < 10) {
+		msleep(1000);
+		ret = mfc_open(inode, file);
+	}
+
+	return ret;
+}
+#define MFC_OPEN mfc_open_with_retry
+
 static const struct file_operations mfc_fops = {
 	.owner      = THIS_MODULE,
 	.open       = mfc_open,
@@ -527,7 +567,6 @@ static void mfc_firmware_request_complete_handler(const struct firmware *fw,
 						  void *context)
 {
 	if (fw != NULL) {
-		mfc_load_firmware(fw->data, fw->size);
 		mfc_fw_info = fw;
 	} else {
 		mfc_err("failed to load MFC F/W, MFC will not working\n");

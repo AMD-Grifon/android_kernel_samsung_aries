@@ -23,6 +23,9 @@ struct vm_area_struct;
 #define ___GFP_REPEAT		0x400u
 #define ___GFP_NOFAIL		0x800u
 #define ___GFP_NORETRY		0x1000u
+#ifdef CONFIG_CMA
+#define ___GFP_CMA		0x2000u
+#endif
 #define ___GFP_COMP		0x4000u
 #define ___GFP_ZERO		0x8000u
 #define ___GFP_NOMEMALLOC	0x10000u
@@ -50,7 +53,13 @@ struct vm_area_struct;
 #define __GFP_HIGHMEM	((__force gfp_t)___GFP_HIGHMEM)
 #define __GFP_DMA32	((__force gfp_t)___GFP_DMA32)
 #define __GFP_MOVABLE	((__force gfp_t)___GFP_MOVABLE)  /* Page is movable */
+#ifndef CONFIG_CMA
 #define GFP_ZONEMASK	(__GFP_DMA|__GFP_HIGHMEM|__GFP_DMA32|__GFP_MOVABLE)
+#else
+#define __GFP_CMA	((__force gfp_t)___GFP_CMA)
+#define GFP_ZONEMASK	(__GFP_DMA|__GFP_HIGHMEM|__GFP_DMA32|__GFP_MOVABLE| \
+			__GFP_CMA)
+#endif
 /*
  * Action modifiers - doesn't change the zoning
  *
@@ -371,5 +380,17 @@ extern gfp_t gfp_allowed_mask;
 
 extern void pm_restrict_gfp_mask(void);
 extern void pm_restore_gfp_mask(void);
+
+#ifdef CONFIG_CMA
+
+/* The below functions must be run on a range from a single zone. */
+extern int alloc_contig_range(unsigned long start, unsigned long end,
+			      unsigned migratetype);
+extern void free_contig_range(unsigned long pfn, unsigned nr_pages);
+
+/* CMA stuff */
+extern void init_cma_reserved_pageblock(struct page *page);
+
+#endif
 
 #endif /* __LINUX_GFP_H */

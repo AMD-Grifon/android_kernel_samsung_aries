@@ -19,6 +19,7 @@
 #include <linux/highmem.h>
 #include <linux/gfp.h>
 #include <linux/memblock.h>
+#include <linux/dma-contiguous.h>
 #include <linux/sort.h>
 
 #include <asm/mach-types.h>
@@ -28,6 +29,7 @@
 #include <asm/sizes.h>
 #include <asm/tlb.h>
 #include <asm/fixmap.h>
+#include <asm/memory.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -212,6 +214,22 @@ static void __init arm_bootmem_init(unsigned long start_pfn,
 }
 
 #ifdef CONFIG_ZONE_DMA
+
+#ifdef ARM_DMA_ZONE_SIZE
+unsigned long arm_dma_zone_size = ARM_DMA_ZONE_SIZE;
+#else
+unsigned long arm_dma_zone_size __read_mostly;
+#endif
+EXPORT_SYMBOL(arm_dma_zone_size);
+
+/*
+ * The DMA mask corresponding to the maximum bus address allocatable
+ * using GFP_DMA.  The default here places no restriction on DMA
+ * allocations.  This must be the smallest DMA mask in the system,
+ * so a successful GFP_DMA allocation will always satisfy this.
+ */
+u32 arm_dma_limit;
+
 static void __init arm_adjust_dma_zone(unsigned long *size, unsigned long *hole,
 	unsigned long dma_size)
 {
@@ -224,6 +242,17 @@ static void __init arm_adjust_dma_zone(unsigned long *size, unsigned long *hole,
 	hole[ZONE_DMA] = 0;
 }
 #endif
+
+void __init setup_dma_zone(struct machine_desc *mdesc)
+{
+#ifdef CONFIG_ZONE_DMA
+	if (mdesc->dma_zone_size) {
+		arm_dma_zone_size = mdesc->dma_zone_size;
+		arm_dma_limit = PHYS_OFFSET + arm_dma_zone_size - 1;
+	} else
+		arm_dma_limit = 0xffffffff;
+#endif
+}
 
 static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 	unsigned long max_high)
@@ -267,17 +296,14 @@ static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 #endif
 	}
 
-#ifdef ARM_DMA_ZONE_SIZE
-#ifndef CONFIG_ZONE_DMA
-#error ARM_DMA_ZONE_SIZE set but no DMA zone to limit allocations
-#endif
-
+#ifdef CONFIG_ZONE_DMA
 	/*
 	 * Adjust the sizes according to any special requirements for
 	 * this machine type.
 	 */
-	arm_adjust_dma_zone(zone_size, zhole_size,
-		ARM_DMA_ZONE_SIZE >> PAGE_SHIFT);
+	if (arm_dma_zone_size)
+		arm_adjust_dma_zone(zone_size, zhole_size,
+			arm_dma_zone_size >> PAGE_SHIFT);
 #endif
 
 	free_area_init_node(0, zone_size, min, zhole_size);
@@ -357,6 +383,12 @@ void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 	/* reserve any platform specific memblock areas */
 	if (mdesc->reserve)
 		mdesc->reserve();
+
+	/*
+	 * reserve memory for DMA contigouos allocations,
+	 * must come from DMA area inside low memory
+	 */
+	dma_contiguous_reserve(min(arm_dma_limit, arm_lowmem_limit));
 
 	memblock_analyze();
 	memblock_dump_all();
@@ -637,9 +669,6 @@ void __init mem_init(void)
 			"    ITCM    : 0x%08lx - 0x%08lx   (%4ld kB)\n"
 #endif
 			"    fixmap  : 0x%08lx - 0x%08lx   (%4ld kB)\n"
-#ifdef CONFIG_MMU
-			"    DMA     : 0x%08lx - 0x%08lx   (%4ld MB)\n"
-#endif
 			"    vmalloc : 0x%08lx - 0x%08lx   (%4ld MB)\n"
 			"    lowmem  : 0x%08lx - 0x%08lx   (%4ld MB)\n"
 #ifdef CONFIG_HIGHMEM
@@ -658,9 +687,6 @@ void __init mem_init(void)
 			MLK(ITCM_OFFSET, (unsigned long) itcm_end),
 #endif
 			MLK(FIXADDR_START, FIXADDR_TOP),
-#ifdef CONFIG_MMU
-			MLM(CONSISTENT_BASE, CONSISTENT_END),
-#endif
 			MLM(VMALLOC_START, VMALLOC_END),
 			MLM(PAGE_OFFSET, (unsigned long)high_memory),
 #ifdef CONFIG_HIGHMEM
@@ -683,9 +709,6 @@ void __init mem_init(void)
 	 * be detected at build time already.
 	 */
 #ifdef CONFIG_MMU
-	BUILD_BUG_ON(VMALLOC_END			> CONSISTENT_BASE);
-	BUG_ON(VMALLOC_END				> CONSISTENT_BASE);
-
 	BUILD_BUG_ON(TASK_SIZE				> MODULES_VADDR);
 	BUG_ON(TASK_SIZE 				> MODULES_VADDR);
 #endif
