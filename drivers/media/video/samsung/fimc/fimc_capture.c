@@ -1878,7 +1878,7 @@ int fimc_streamon_capture(void *fh)
 		}
 	}
 
-#elif defined(CONFIG_MACH_ARIES) && !defined(CONFIG_SAMSUNG_GALAXYS4G)
+#elif defined(CONFIG_MACH_ARIES) && !defined(CONFIG_SAMSUNG_GALAXYS4G) || defined(CONFIG_MACH_WAVE)
 
 	if (!ctrl->cam->initialized)
 		fimc_camera_init(ctrl);
