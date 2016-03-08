@@ -1963,7 +1963,7 @@ int fimc_streamon_capture(void *fh)
 			fimc_hwset_output_yuv(ctrl, cap->fmt.pixelformat);
 
 		fimc_hwset_output_size(ctrl, cap->fmt.width, cap->fmt.height);
-#elif defined(CONFIG_MACH_ARIES) && !defined(CONFIG_SAMSUNG_GALAXYS4G) || defined(CONFIG_MACH_WAVE)
+#if defined(CONFIG_MACH_ARIES) && !defined(CONFIG_SAMSUNG_GALAXYS4G) || defined(CONFIG_MACH_WAVE)
 		if ((device_id != 0) && (vtmode != 1)) {
 			ctrl->cap->rotate = 90;
 			dev_err(ctrl->dev, "%s, rotate 90", __func__);
