@@ -267,7 +267,6 @@ config MACH_ARIES
 	select S5PV210_POWER_DOMAIN
 	select S5P_DEV_CSIS0
 	select S5P_SETUP_MIPIPHY
-	select ARM_HAS_SG_CHAIN
 	help
 	  Machine support for Aries
 
@@ -290,7 +289,6 @@ config MACH_P1
 	select S5PV210_POWER_DOMAIN
 	select S5P_DEV_CSIS0
 	select S5P_SETUP_MIPIPHY
-	select ARM_HAS_SG_CHAIN
 	help
 	  Machine support for P1
 
@@ -520,9 +518,3 @@ config SEC_HEADSET
 	help
 	  Provides support for detecting SEC 2 wire devices, such as wired
 	  headset.
-
-config ION_S5P
-	bool "Enable ION memory management"
-	depends on ION
-	help
-	  Provides support for ION memory.
