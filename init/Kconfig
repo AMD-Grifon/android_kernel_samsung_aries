@@ -580,14 +580,14 @@ config RCU_FANOUT_EXACT
 
 config RCU_FAST_NO_HZ
 	bool "Accelerate last non-dyntick-idle CPU's grace periods"
-	depends on TREE_RCU && NO_HZ && SMP
+	depends on NO_HZ && SMP
 	default n
 	help
 	  This option causes RCU to attempt to accelerate grace periods
-	  in order to allow the final CPU to enter dynticks-idle state
-	  more quickly.  On the other hand, this option increases the
-	  overhead of the dynticks-idle checking, particularly on systems
-	  with large numbers of CPUs.
+	  in order to allow CPUs to enter dynticks-idle state more
+	  quickly.  On the other hand, this option increases the overhead
+	  of the dynticks-idle checking, particularly on systems with
+	  large numbers of CPUs.
 
 	  Say Y if energy efficiency is critically important, particularly
 	  	if you have relatively few CPUs.
@@ -1031,13 +1031,35 @@ source "usr/Kconfig"
 
 endif
 
+choice
+
+    prompt "Optimization level"
+    default CC_OPTIMIZE_MORE
+
 config CC_OPTIMIZE_FOR_SIZE
 	bool "Optimize for size"
 	help
 	  Enabling this option will pass "-Os" instead of "-O2" to gcc
 	  resulting in a smaller kernel.
+	  
+config CC_OPTIMIZE_DEFAULT
+    bool "Use -O2"
+    help
+        Enabling this option will pass "-O2" instead of "-Os" or "-O3" to gcc
+	  resulting in a normal sized kernel, slightly optimized.
 
-	  If unsure, say Y.
+config CC_OPTIMIZE_MORE
+    bool "Use -O3"
+    help
+        Enabling this option will pass "-O3" instead of "-Os" or "-O2" to gcc
+	  resulting in a large sized kernel, fully optimized.
+
+config CC_OPTIMIZE_FAST
+    bool "Use -Ofast"
+    help
+        Enabling this option will pass "-Ofast" instead of "-Os" or "-O2" or "-O3" to gcc resulting in a large sized kernel, speed optimized. Forces -ffast-math and other optimizations, not recommended to use for casual usage.
+
+endchoice
 
 config SYSCTL
 	bool

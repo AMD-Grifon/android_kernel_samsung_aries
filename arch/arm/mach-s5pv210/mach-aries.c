@@ -31,9 +31,6 @@
 #include <linux/irq.h>
 #include <linux/skbuff.h>
 #include <linux/console.h>
-#ifdef CONFIG_ION_S5P
-#include <../../../drivers/staging/android/ion/ion.h>
-#endif
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -340,18 +337,22 @@ static struct s3cfb_lcd s6e63m0 = {
 };
 
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0 (12288 * SZ_1K)
+#define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0_XL (12288 * SZ_1K)
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0_BM (5000 * SZ_1K)
 
 // Disabled to save memory (we can't find where it's used)
 //#define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC1 (9900 * SZ_1K)
 
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC2 (12288 * SZ_1K)
+#define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC2_XL (12288 * SZ_1K)
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC2_BM (5000 * SZ_1K)
 
 #define S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM (0 * SZ_1K)
 
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0_XL (11264 * SZ_1K)
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1_XL (11264 * SZ_1K)
+#define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0_BM (11264 * SZ_1K)
+#define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1_BM (11264 * SZ_1K)
 
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0 (14336 * SZ_1K)
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1 (21504 * SZ_1K)
@@ -362,11 +363,6 @@ static struct s3cfb_lcd s6e63m0 = {
 						 (CONFIG_FB_S3C_NUM_OVLY_WIN * \
 						  CONFIG_FB_S3C_NUM_BUF_OVLY_WIN)))
 #define  S5PV210_VIDEO_SAMSUNG_MEMSIZE_JPEG (916 * SZ_1K)
-#define  S5P_MAX_VIDEO_BUFFERS	8
-#define  S5P_VIDEO_Y_SIZE	ALIGN(1280 * 720, PAGE_SIZE)
-#define  S5P_VIDEO_UV_SIZE	ALIGN(1280 * 360, PAGE_SIZE)
-#define  S5P_ION_CARVEOUT	\
-	S5P_MAX_VIDEO_BUFFERS * (S5P_VIDEO_Y_SIZE + S5P_VIDEO_UV_SIZE)
 
 static struct s5p_media_device aries_media_devs[] = {
 	[0] = {
@@ -411,15 +407,6 @@ static struct s5p_media_device aries_media_devs[] = {
 		.memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMD,
 		.paddr = 0,
 	},
-#ifdef CONFIG_ION_S5P
-	[6] = {
-		.id = S5P_MDEV_ION_CARVEOUT,
-		.name = "ion-carveout",
-		.bank = 1,
-		.memsize = S5P_ION_CARVEOUT,
-		.paddr = 0,
-	},
-#endif
 };
 
 #ifdef CONFIG_CPU_FREQ
@@ -5230,40 +5217,6 @@ static struct platform_device watchdog_device = {
 	.id = -1,
 };
 
-#ifdef CONFIG_ION_S5P
-struct ion_platform_heap aries_heaps[] = {
-	{
-		.id	    = ION_HEAP_TYPE_SYSTEM,
-		.type	= ION_HEAP_TYPE_SYSTEM,
-		.name	= "system",
-	},{
-		.id	    = ION_HEAP_TYPE_CARVEOUT,
-		.type	= ION_HEAP_TYPE_CARVEOUT,
-		.name	= "carveout",
-	}
-};
-static struct ion_platform_data ion_s5p_data = {
-	.nr = ARRAY_SIZE(aries_heaps),
-	.heaps = aries_heaps,
-};
-
-static struct platform_device ion_s5p_device = {
-	.name = "ion-s5p",
-	.id = -1,
-	.dev = {
-		.platform_data = &ion_s5p_data,
-	},
-};
-
-static void __init ion_s5p_set_platdata(void)
-{
-	ion_s5p_data.heaps[1].base =
-		s5p_get_media_memory_bank(S5P_MDEV_ION_CARVEOUT, 1);
-	ion_s5p_data.heaps[1].size =
-		s5p_get_media_memsize_bank(S5P_MDEV_ION_CARVEOUT, 1);
-}
-#endif /* CONFIG_ION_S5P */
-
 static struct platform_device *aries_devices[] __initdata = {
 	&watchdog_device,
 #ifdef CONFIG_FIQ_DEBUGGER
@@ -5397,48 +5350,55 @@ static struct platform_device *aries_devices[] __initdata = {
 	&sec_device_wifi,
 	&samsung_asoc_dma,
 
-#ifdef CONFIG_ION_S5P
-	&ion_s5p_device,
-#endif
 };
 
 static void check_bigmem(void) {
+	enum mdev_ids  {
+	mfc0 = 0,
+	mfc1 = 1,
+	fimc0 = 2,
+	// fimc1 was removed
+	fimc2 = 3,
+	jpeg = 4,
+	};
+
 	int bootmode = __raw_readl(S5P_INFORM6);
 	if ((bootmode == 11) || (bootmode == 13)) {
 		nocam = true;
 		bigmem = false;
 		xlmem = false;
-		aries_media_devs[2].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
-		aries_media_devs[4].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
-		aries_media_devs[0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
-		aries_media_devs[1].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
+		aries_media_devs[mfc0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
+		aries_media_devs[mfc1].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
+		aries_media_devs[fimc0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
+		aries_media_devs[fimc2].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
+		aries_media_devs[jpeg].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_NOCAM;
 	}
 	else if ((bootmode == 7) || (bootmode == 9)) {
 		bigmem = true;
 		nocam = false;
 		xlmem = false;
-		aries_media_devs[2].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0_BM;
-		aries_media_devs[4].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0_BM;
-		aries_media_devs[0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0_XL; 
-		aries_media_devs[1].memsize =  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1_XL;
+		aries_media_devs[mfc0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0_BM;
+		aries_media_devs[mfc1].memsize =  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1_BM;
+		aries_media_devs[fimc0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0_BM;
+		aries_media_devs[fimc2].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC2_BM;
 	}
 	else if ((bootmode == 3) || (bootmode == 5)) {
 		xlmem = true;
 		bigmem = false;
 		nocam = false;
-		aries_media_devs[2].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0;
-		aries_media_devs[4].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0;
-		aries_media_devs[0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0_XL; 
-		aries_media_devs[1].memsize =  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1_XL;
+		aries_media_devs[mfc0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0_XL;
+		aries_media_devs[mfc1].memsize =  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1_XL;
+		aries_media_devs[fimc0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0_XL;
+		aries_media_devs[fimc2].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC2_XL;
 	}
 	else {
 		bigmem = false;
 		xlmem = false;
 		nocam = false;
-		aries_media_devs[2].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0;
-		aries_media_devs[4].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0;
-		aries_media_devs[0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0; 
-		aries_media_devs[1].memsize =  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1;
+		aries_media_devs[mfc0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC0;
+		aries_media_devs[mfc1].memsize =  S5PV210_VIDEO_SAMSUNG_MEMSIZE_MFC1;
+		aries_media_devs[fimc0].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC0;
+		aries_media_devs[fimc2].memsize = S5PV210_VIDEO_SAMSUNG_MEMSIZE_FIMC2;
 	}
 }
 
@@ -5693,10 +5653,6 @@ static void __init aries_machine_init(void)
 
 	/*initialise the gpio's*/
 	aries_init_gpio();
-
-#ifdef CONFIG_ION_S5P
-	ion_s5p_set_platdata();
-#endif
 
 	/* headset/earjack detection */
 #if defined(CONFIG_SAMSUNG_CAPTIVATE) || defined(CONFIG_SAMSUNG_GALAXYS4G)
