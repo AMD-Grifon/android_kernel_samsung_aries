@@ -747,12 +747,15 @@ int pipe_to_file(struct pipe_inode_info *pipe, struct pipe_buffer *buf,
 		goto out;
 
 	if (buf->page != page) {
+		/*
+		 * Careful, ->map() uses KM_USER0!
+		 */
 		char *src = buf->ops->map(pipe, buf, 1);
-		char *dst = kmap_atomic(page);
+		char *dst = kmap_atomic(page, KM_USER1);
 
 		memcpy(dst + offset, src + buf->offset, this_len);
 		flush_dcache_page(page);
-		kunmap_atomic(dst);
+		kunmap_atomic(dst, KM_USER1);
 		buf->ops->unmap(pipe, buf, src);
 	}
 	ret = pagecache_write_end(file, mapping, sd->pos, this_len, this_len,
@@ -1010,8 +1013,10 @@ generic_file_splice_write(struct pipe_inode_info *pipe, struct file *out,
 		mutex_lock_nested(&inode->i_mutex, I_MUTEX_CHILD);
 		ret = file_remove_suid(out);
 		if (!ret) {
-			file_update_time(out);
-			ret = splice_from_pipe_feed(pipe, &sd, pipe_to_file);
+			ret = file_update_time(out);
+			if (!ret)
+				ret = splice_from_pipe_feed(pipe, &sd,
+							    pipe_to_file);
 		}
 		mutex_unlock(&inode->i_mutex);
 	} while (ret > 0);

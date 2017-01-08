@@ -18,6 +18,7 @@
 #include <linux/mount.h>
 #include <linux/fs.h>
 #include <linux/gfs2_ondisk.h>
+#include <linux/ext2_fs.h>
 #include <linux/falloc.h>
 #include <linux/swap.h>
 #include <linux/crc32.h>
@@ -273,7 +274,7 @@ out_trans_end:
 out:
 	gfs2_glock_dq_uninit(&gh);
 out_drop_write:
-	mnt_drop_write(filp->f_path.mnt);
+	mnt_drop_write_file(filp);
 	return error;
 }
 

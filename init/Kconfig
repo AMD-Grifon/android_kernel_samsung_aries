@@ -714,25 +714,6 @@ config CGROUP_FREEZER
 	  Provides a way to freeze and unfreeze all tasks in a
 	  cgroup.
 
-config CGROUP_TIMER_SLACK
-	bool "Timer slack cgroup controller"
-	help
-	  Provides a way to set minimal timer slack value for tasks in
-	  a cgroup.
-	  It's useful in mobile devices where certain background apps
-	  are attached to a cgroup and combined wakeups are desired.
-
-config CGROUP_DYNAMIC_TIMER_SLACK
-	bool "Dynamic management of the minimal timer slack value during suspend/resume"
-	depends on CGROUP_TIMER_SLACK && HAS_EARLYSUSPEND
-	default n
-	help
-	  This feature allows to use different minimal timer slack value
-	  for the timer slack controller when the system is suspended and
-	  when the system has been resumed.
-
-	  If unsure, say N to disable this feature
-
 config CGROUP_DEVICE
 	bool "Device controller for cgroups"
 	help
@@ -1340,21 +1321,6 @@ config VM_EVENT_COUNTERS
 	  This option allows the disabling of the VM event counters
 	  on EXPERT systems.  /proc/vmstat will only show page counts
 	  if VM event counters are disabled.
-
-config AIO_SSD_ONLY
-	bool "Tune AIO performance for SSDs" if EXPERT
-	default n
-	depends on AIO
-	help
-	  Solid state storage have no head to move and no location
-	  to "physically reach", as the block is being retrieved
-	  in the exact moment we request it.
-	  Optimize Asynchronous IO for those conditions.
-
-	  Enabling this option on systems with rotational drives
-	  WILL be resulting in bad storage performance.
-
-	  If you've got ONLY SSDs, say Y. If unsure, say N.
 
 config PCI_QUIRKS
 	default y

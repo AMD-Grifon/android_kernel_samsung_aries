@@ -240,7 +240,7 @@ void *generic_pipe_buf_map(struct pipe_inode_info *pipe,
 {
 	if (atomic) {
 		buf->flags |= PIPE_BUF_FLAG_ATOMIC;
-		return kmap_atomic(buf->page);
+		return kmap_atomic(buf->page, KM_USER0);
 	}
 
 	return kmap(buf->page);
@@ -261,7 +261,7 @@ void generic_pipe_buf_unmap(struct pipe_inode_info *pipe,
 {
 	if (buf->flags & PIPE_BUF_FLAG_ATOMIC) {
 		buf->flags &= ~PIPE_BUF_FLAG_ATOMIC;
-		kunmap_atomic(map_data);
+		kunmap_atomic(map_data, KM_USER0);
 	} else
 		kunmap(buf->page);
 }
@@ -605,14 +605,14 @@ redo1:
 			remaining = chars;
 redo2:
 			if (atomic)
-				src = kmap_atomic(page);
+				src = kmap_atomic(page, KM_USER0);
 			else
 				src = kmap(page);
 
 			error = pipe_iov_copy_from_user(src, &offset, iov,
 							&remaining, atomic);
 			if (atomic)
-				kunmap_atomic(src);
+				kunmap_atomic(src, KM_USER0);
 			else
 				kunmap(page);
 
@@ -671,8 +671,11 @@ out:
 		wake_up_interruptible_sync_poll(&pipe->wait, POLLIN | POLLRDNORM);
 		kill_fasync(&pipe->fasync_readers, SIGIO, POLL_IN);
 	}
-	if (ret > 0)
-		file_update_time(filp);
+	if (ret > 0) {
+		int err = file_update_time(filp);
+		if (err)
+			ret = err;
+	}
 	return ret;
 }
 
@@ -1376,8 +1379,8 @@ static int __init init_pipe_fs(void)
 
 static void __exit exit_pipe_fs(void)
 {
-	kern_unmount(pipe_mnt);
 	unregister_filesystem(&pipe_fs_type);
+	mntput(pipe_mnt);
 }
 
 fs_initcall(init_pipe_fs);

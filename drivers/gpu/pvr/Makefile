@@ -36,6 +36,8 @@ ccflags-y += \
 	-DSUPPORT_GET_DC_BUFFERS_SYS_PHYADDRS \
 	-DPVRSRV_MMU_MAKE_READWRITE_ON_DEMAND \
 	-DPVRSRV_AVOID_RANGED_INVALIDATE \
+	-DSUPPORT_DC_CMDCOMPLETE_WHEN_NO_LONGER_DISPLAYED \
+	-DSUPPORT_LARGE_GENERAL_HEAP \
 	-DPVR_LDM_DRIVER_REGISTRATION_NAME="\"pvrsrvkm\""
 
 ccflags-$(CONFIG_PVR_BUILD_RELEASE) += \
@@ -111,8 +113,7 @@ pvrsrvkm-y := \
 	sgx/sgxkick.o \
 	sgx/sgxtransfer.o \
 	sgx/mmu.o \
-	sgx/pb.o \
-  	pvr_oc.o
+	sgx/pb.o
 
 ccflags-$(CONFIG_ARCH_S5PV210) += \
 	-DPVR_BUILD_DIR="\"smdkc110_android\"" \
