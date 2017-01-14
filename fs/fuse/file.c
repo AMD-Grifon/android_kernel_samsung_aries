@@ -14,6 +14,13 @@
 #include <linux/sched.h>
 #include <linux/module.h>
 #include <linux/compat.h>
+#ifdef CONFIG_CMA
+/* Needed for lru_cache_add_lru() */
+#include <linux/swap.h>
+#endif
+#ifdef CONFIG_CMA_DEBUG_VERBOSE
+#include <linux/migrate.h>
+#endif
 
 static const struct file_operations fuse_direct_io_file_operations;
 
@@ -648,6 +655,44 @@ static int fuse_readpages_fill(void *_data, struct page *page)
 			return PTR_ERR(req);
 		}
 	}
+#ifdef CONFIG_CMA
+	if (get_pageblock_migratetype(page) == MIGRATE_CMA) {
+		struct page *oldpage = page, *newpage;
+		int err;
+
+		/* make sure that old page is not free in-between the calls */
+		page_cache_get(oldpage);
+
+		newpage = alloc_page(GFP_HIGHUSER);
+		if (!newpage) {
+			page_cache_release(oldpage);
+			return -ENOMEM;
+		}
+
+		lock_page(newpage);
+		err = replace_page_cache_page(oldpage, newpage, GFP_KERNEL);
+		if (err) {
+			unlock_page(newpage);
+			__free_page(newpage);
+			page_cache_release(oldpage);
+			return err;
+		}
+
+		/*
+		 * Decrement the count on new page to make page cache the only
+		 * owner of it
+		 */
+		put_page(newpage);
+
+		lru_cache_add_lru(newpage, LRU_ACTIVE_FILE);
+
+		/* finally release the old page and swap pointers */
+		unlock_page(oldpage);
+		page_cache_release(oldpage);
+		page = newpage;
+	}
+#endif
+
 	page_cache_get(page);
 	req->pages[req->num_pages] = page;
 	req->num_pages++;
@@ -896,6 +941,7 @@ static ssize_t fuse_fill_write_pages(struct fuse_req *req,
 		pagefault_enable();
 		flush_dcache_page(page);
 
+		iov_iter_advance(ii, tmp);
 		if (!tmp) {
 			unlock_page(page);
 			page_cache_release(page);
@@ -907,7 +953,6 @@ static ssize_t fuse_fill_write_pages(struct fuse_req *req,
 		req->pages[req->num_pages] = page;
 		req->num_pages++;
 
-		iov_iter_advance(ii, tmp);
 		count += tmp;
 		pos += tmp;
 		offset += tmp;
@@ -2169,6 +2214,18 @@ static const struct file_operations fuse_direct_io_file_operations = {
 	/* no splice_read */
 };
 
+#ifdef CONFIG_CMA_DEBUG_VERBOSE
+int fuse_migrate_page(struct address_space *mapping,
+			struct page *newpage, struct page *page, enum migrate_mode mode)
+{
+	int rc = fallback_migrate_page(mapping, newpage, page, mode);
+	if (rc) {
+		pr_err("fuse_migrate_page: fallback_migrate_page failed with error %d\n", rc);
+	}
+	return rc;
+}
+#endif
+
 static const struct address_space_operations fuse_file_aops  = {
 	.readpage	= fuse_readpage,
 	.writepage	= fuse_writepage,
@@ -2178,6 +2235,9 @@ static const struct address_space_operations fuse_file_aops  = {
 	.readpages	= fuse_readpages,
 	.set_page_dirty	= __set_page_dirty_nobuffers,
 	.bmap		= fuse_bmap,
+#ifdef CONFIG_CMA_DEBUG_VERBOSE
+	.migratepage	= fuse_migrate_page,
+#endif
 };
 
 void fuse_init_file_inode(struct inode *inode)

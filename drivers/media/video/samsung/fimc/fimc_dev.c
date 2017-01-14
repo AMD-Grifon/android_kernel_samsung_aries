@@ -1003,6 +1003,28 @@ static int fimc_open(struct file *filp)
 		goto kzalloc_err;
 	}
 
+	if (0 == ctrl->id) {
+		ret = s5p_alloc_media_memory_bank(S5P_MDEV_FIMC0, 1);
+		printk(KERN_INFO "FIMC%d: CMA allocating\n",ctrl->id);
+
+		if (ret < 0) {
+			ret = -ENOMEM;
+			printk(KERN_INFO "FIMC%d: dma_alloc_coherent failed\n",
+								ctrl->id);
+			goto ctx_err;
+		}
+	} else if (2 == ctrl->id) {
+		ret = s5p_alloc_media_memory_bank(S5P_MDEV_FIMC2, 1);
+		printk(KERN_INFO "FIMC%d: CMA allocating\n",ctrl->id);
+
+		if (ret < 0) {
+			ret = -ENOMEM;
+			printk(KERN_INFO "FIMC%d: dma_alloc_coherent failed\n",
+								ctrl->id);
+			goto ctx_err;
+		}
+	}
+
 	prv_data->ctx_id = fimc_get_free_ctx(ctrl);
 	if (prv_data->ctx_id < 0) {
 		fimc_err("%s: Context busy flag not reset.\n", __func__);
@@ -1226,7 +1248,14 @@ static int fimc_release(struct file *filp)
 #ifdef CONFIG_MACH_P1
 	ctrl->ctx_busy[ctx_id] = 0;
 #endif
-	mutex_unlock(&ctrl->lock);
+        
+        mutex_unlock(&ctrl->lock);
+        
+	if (2 == ctrl->id) {
+		s5p_release_media_memory_bank(S5P_MDEV_FIMC2, 1);
+	} else if (0 == ctrl->id) {
+		s5p_release_media_memory_bank(S5P_MDEV_FIMC0, 1);
+	}
 
 	fimc_info1("%s released.\n", ctrl->name);
 
