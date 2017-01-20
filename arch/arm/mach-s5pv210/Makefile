@@ -62,6 +62,7 @@ obj-$(CONFIG_MACH_WAVE)		+= wave-btlpm.o
 obj-$(CONFIG_MACH_WAVE)		+= wave-watchdog.o
 obj-$(CONFIG_MACH_WAVE)		+= wave-panel-tl2796.o
 obj-$(CONFIG_MACH_WAVE)		+= wave-panel-lg4573.o
+obj-$(CONFIG_MACH_WAVE)		+= hwrev.o
 obj-$(CONFIG_MACH_WAVE)		+= dev-wave-phone.o
 
 # device support
